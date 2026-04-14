@@ -1,8 +1,11 @@
+import json
 import logging
 import sys
 from functools import lru_cache
 from logging.handlers import RotatingFileHandler
+from typing import Any
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +22,29 @@ class Settings(BaseSettings):
     admins: list[int]
     limit_spam: int
     admin_to_update_of_payment: int
+
+    @field_validator("admins", mode="before")
+    @classmethod
+    def parse_admins(cls, v: Any) -> list[int]:
+        if isinstance(v, list):
+            return v
+        if isinstance(v, int):
+            return [v]
+        if isinstance(v, str):
+            v = v.strip()
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+                if isinstance(parsed, int):
+                    return [parsed]
+            except (json.JSONDecodeError, ValueError):
+                pass
+            try:
+                return [int(v)]
+            except ValueError:
+                pass
+        return v
 
 
 @lru_cache
