@@ -6,3 +6,11 @@ aiosqlite==0.22.1
 pydantic-settings==2.12.0
 httpx==0.28.1
 schedule==1.2.2
+aiosqlite==0.22.1
+greenlet==3.3.0
+httpx==0.28.1
+pydantic-settings==2.12.0
+pyrogram
+schedule==1.2.2
+SQLAlchemy==2.0.45
+TgCrypto==1.2.5
