@@ -1,4 +1,5 @@
 import logging
+import os
 from pyrogram import Client
 
 from data import config
@@ -7,11 +8,15 @@ _logger = logging.getLogger(__name__)
 
 settings = config.get_settings()
 
+# On Vercel, session files must live in /tmp (writable ephemeral storage)
+_WORKDIR = "/tmp" if os.getenv("VERCEL") else "."
+
 bot_1 = Client(
     name="my_bot",
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
     bot_token=settings.telegram_bot_token,
+    workdir=_WORKDIR,
 )
 
 bot_2 = Client(
@@ -19,4 +24,5 @@ bot_2 = Client(
     api_id=settings.telegram_api_id,
     api_hash=settings.telegram_api_hash,
     bot_token=settings.telegram_bot_token_2,
+    workdir=_WORKDIR,
 )

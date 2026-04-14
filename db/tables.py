@@ -26,8 +26,14 @@ from sqlalchemy.orm import (
 _logger = logging.getLogger(__name__)
 
 
+import os as _os
+
+_DB_FILE = (
+    "/tmp/bot_db.sqlite" if _os.getenv("VERCEL") else "bot_db.sqlite"
+)
+
 engine = create_async_engine(
-    url="sqlite+aiosqlite:///bot_db.sqlite",
+    url=f"sqlite+aiosqlite:///{_DB_FILE}",
 )
 
 Session = async_sessionmaker(bind=engine, expire_on_commit=False)
