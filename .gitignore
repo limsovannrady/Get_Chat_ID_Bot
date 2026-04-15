@@ -3,7 +3,12 @@ venv
 .idea
 *pycache*
 *.env
-*.txt
-*.json
 *.sqlite
 *.log
+
+# Ignore txt/json files except critical project files
+*.txt
+!requirements.txt
+
+*.json
+!vercel.json

@@ -6,7 +6,7 @@ to the existing Pyrogram handlers.
 
 Setup:
   1. Deploy to Vercel
-  2. Call: https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<your-domain>/api/webhook
+  2. Call: https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<your-vercel-domain>/api/webhook
 """
 
 import sys
