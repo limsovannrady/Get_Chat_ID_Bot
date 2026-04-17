@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import sys
 from functools import lru_cache
 from logging.handlers import RotatingFileHandler
@@ -78,23 +79,27 @@ def setup_logging():
     root_logger = logging.getLogger()
     root_logger.setLevel(level=logging.DEBUG)
 
-    # log config
+    # log config — on Vercel the filesystem is read-only, so skip the file handler
     logging_handlers = [
         (
             logging.StreamHandler(),
             logging.INFO,
         ),
-        (
-            RotatingFileHandler(
-                filename="log.log",
-                maxBytes=20 * 1024 * 1024,  # 20 MB
-                backupCount=3,
-                mode="a",
-                encoding="utf-8",
-            ),
-            logging.DEBUG,
-        ),
     ]
+
+    if not os.getenv("VERCEL"):
+        logging_handlers.append(
+            (
+                RotatingFileHandler(
+                    filename="log.log",
+                    maxBytes=20 * 1024 * 1024,  # 20 MB
+                    backupCount=3,
+                    mode="a",
+                    encoding="utf-8",
+                ),
+                logging.DEBUG,
+            )
+        )
     for handler, level in logging_handlers:
         handler.setLevel(level)
         handler.setFormatter(log_format)
