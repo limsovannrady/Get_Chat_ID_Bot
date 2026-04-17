@@ -70,8 +70,12 @@ async def _init_bots():
         for h in tg_handlers.HANDLERS:
             _bot1.add_handler(h)
 
+        session1_mode = "session_string" if os.getenv("BOT_1_SESSION_STRING") else "file"
+        session2_mode = "session_string" if os.getenv("BOT_2_SESSION_STRING") else "file"
+        logger.info(f"Starting bot1 ({session1_mode}) and bot2 ({session2_mode})...")
         await _bot1.start()
         await _bot2.start()
+        logger.info("Both bots connected to Telegram MTProto")
 
         for admin_id in settings.admins:
             if not await repository.get_user(tg_id=admin_id):
@@ -337,7 +341,11 @@ async def webhook(request: Request):
     try:
         update = await request.json()
         logger.info(f"Received update: {update.get('update_id')}")
-        await _init_bots()
+        try:
+            await asyncio.wait_for(_init_bots(), timeout=8.0)
+        except asyncio.TimeoutError:
+            logger.error("TIMEOUT: _init_bots() exceeded 8s — MTProto cold-start too slow for this Vercel tier")
+            return Response(content="OK", status_code=200)
         logger.info(f"Bots initialized: {_initialized}, bot1={_bot1 is not None}")
         await _dispatch(_bot1, update)
         logger.info(f"Dispatch complete for update: {update.get('update_id')}")
