@@ -77,6 +77,7 @@ async def _init_bots():
                 )
 
         _initialized = True
+        logger.info("Bots started successfully via MTProto")
 
 
 # ---------------------------------------------------------------------------
@@ -256,14 +257,19 @@ async def _run_handlers(client: Client, update_obj, update_type: str):
 
     expected_cls = _HANDLER_TYPE_MAP.get(update_type)
     if not expected_cls:
+        logger.warning(f"No handler class for update type: {update_type}")
         return
 
+    matched = False
     for handler in tg_handlers.HANDLERS:
         if not isinstance(handler, expected_cls):
             continue
         try:
             if await handler.check(client, update_obj):
+                logger.info(f"Handler matched: {handler.callback.__name__}")
+                matched = True
                 await handler.callback(client, update_obj)
+                logger.info(f"Handler completed: {handler.callback.__name__}")
                 break
         except ContinuePropagation:
             continue
@@ -273,12 +279,18 @@ async def _run_handlers(client: Client, update_obj, update_type: str):
             logger.error(f"Handler {handler.callback.__name__} error: {exc}", exc_info=True)
             break
 
+    if not matched:
+        logger.info(f"No handler matched for update_type={update_type}")
+
 
 async def _dispatch(client: Client, update: dict):
+    update_keys = [k for k in update.keys() if k != "update_id"]
+    logger.info(f"Dispatching update keys: {update_keys}")
+
     if "message" in update:
         msg = _parse_message(client, update["message"])
-        update_type = "message"
-        await _run_handlers(client, msg, update_type)
+        logger.info(f"Message: chat_type={msg.chat.type if msg.chat else None}, text={msg.text!r}")
+        await _run_handlers(client, msg, "message")
 
     elif "edited_message" in update:
         msg = _parse_message(client, update["edited_message"])
@@ -309,7 +321,7 @@ async def _dispatch(client: Client, update: dict):
         await _run_handlers(client, pcq, "pre_checkout_query")
 
     else:
-        logger.debug(f"Unhandled update type: {list(update.keys())}")
+        logger.info(f"Unhandled update type: {list(update.keys())}")
 
 
 # ---------------------------------------------------------------------------
@@ -321,9 +333,11 @@ async def _dispatch(client: Client, update: dict):
 async def webhook(request: Request):
     try:
         update = await request.json()
-        logger.debug(f"Received update: {update.get('update_id')}")
+        logger.info(f"Received update: {update.get('update_id')}")
         await _init_bots()
+        logger.info(f"Bots initialized: {_initialized}, bot1={_bot1 is not None}")
         await _dispatch(_bot1, update)
+        logger.info(f"Dispatch complete for update: {update.get('update_id')}")
     except Exception as exc:
         logger.error(f"Webhook error: {exc}", exc_info=True)
     return Response(content="OK", status_code=200)
