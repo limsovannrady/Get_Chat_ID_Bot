@@ -161,5 +161,3 @@ async def create_tables(engine: AsyncEngine):
         await conn.run_sync(BaseTable.metadata.create_all)
 
 
-loop = asyncio.get_event_loop()
-loop.run_until_complete(create_tables(engine))

@@ -6,6 +6,7 @@ from pyrogram import raw, __version__, idle
 
 from tg import handlers, others
 from db import repository
+from db.tables import create_tables, engine
 from data import config, clients
 
 
@@ -58,6 +59,8 @@ async def start_telegram_bot():
 
 
 async def main():
+    await create_tables(engine)
+
     # create admins
     for admin in settings.admins:
         if not (user := await repository.get_user(tg_id=admin)):

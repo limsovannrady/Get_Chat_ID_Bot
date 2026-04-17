@@ -57,6 +57,9 @@ async def _init_bots():
         if _initialized:
             return
 
+        from db.tables import create_tables, engine
+        await create_tables(engine)
+
         from data import clients
         from tg import handlers as tg_handlers
         from db import repository
