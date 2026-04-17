@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import datetime
 import logging
+from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, Request, Response
@@ -39,7 +40,6 @@ config.setup_logging()
 logger = logging.getLogger(__name__)
 settings = config.get_settings()
 
-app = FastAPI()
 
 # ---------------------------------------------------------------------------
 # Singleton bot clients — reused across warm invocations
@@ -77,6 +77,20 @@ async def _init_bots():
                 )
 
         _initialized = True
+
+
+# ---------------------------------------------------------------------------
+# Lifespan (replaces deprecated @app.on_event)
+# ---------------------------------------------------------------------------
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await _init_bots()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
@@ -158,6 +172,7 @@ def _parse_message(client: Client, data: dict) -> types.Message:
         caption=data.get("caption"),
         forward_origin=_parse_forward_origin(data.get("forward_origin")),
         media_group_id=data.get("media_group_id"),
+        business_connection_id=data.get("business_connection_id"),
         contact=types.Contact(
             phone_number=data["contact"]["phone_number"],
             first_name=data["contact"].get("first_name", ""),
@@ -193,14 +208,43 @@ def _parse_inline_query(client: Client, data: dict) -> types.InlineQuery:
     return iq
 
 
+def _parse_pre_checkout_query(client: Client, data: dict) -> types.PreCheckoutQuery:
+    pcq = types.PreCheckoutQuery(
+        id=data["id"],
+        from_user=_parse_user(data.get("from", {})),
+        currency=data.get("currency", ""),
+        total_amount=data.get("total_amount", 0),
+        invoice_payload=data.get("invoice_payload", ""),
+        shipping_option_id=data.get("shipping_option_id"),
+    )
+    pcq._client = client
+    return pcq
+
+
+def _parse_business_connection(client: Client, data: dict) -> types.BusinessConnection:
+    bc = types.BusinessConnection(
+        id=data["id"],
+        user=_parse_user(data.get("user", {})),
+        user_chat_id=data.get("user_chat_id", 0),
+        date=datetime.datetime.fromtimestamp(data.get("date", 0)),
+        can_reply=data.get("can_reply", False),
+        is_enabled=data.get("is_enabled", True),
+    )
+    bc._client = client
+    return bc
+
+
 # ---------------------------------------------------------------------------
 # Handler dispatch
 # ---------------------------------------------------------------------------
 
 _HANDLER_TYPE_MAP = {
     "message": MessageHandler,
+    "business_message": BusinessMessageHandler,
     "callback_query": CallbackQueryHandler,
     "inline_query": InlineQueryHandler,
+    "pre_checkout_query": PreCheckoutQueryHandler,
+    "business_connection": BusinessConnectionHandler,
 }
 
 
@@ -230,11 +274,24 @@ async def _run_handlers(client: Client, update_obj, update_type: str):
 async def _dispatch(client: Client, update: dict):
     if "message" in update:
         msg = _parse_message(client, update["message"])
-        await _run_handlers(client, msg, "message")
+        update_type = "message"
+        await _run_handlers(client, msg, update_type)
 
     elif "edited_message" in update:
         msg = _parse_message(client, update["edited_message"])
         await _run_handlers(client, msg, "message")
+
+    elif "business_message" in update:
+        msg = _parse_message(client, update["business_message"])
+        await _run_handlers(client, msg, "business_message")
+
+    elif "edited_business_message" in update:
+        msg = _parse_message(client, update["edited_business_message"])
+        await _run_handlers(client, msg, "business_message")
+
+    elif "business_connection" in update:
+        bc = _parse_business_connection(client, update["business_connection"])
+        await _run_handlers(client, bc, "business_connection")
 
     elif "callback_query" in update:
         cq = _parse_callback_query(client, update["callback_query"])
@@ -244,6 +301,10 @@ async def _dispatch(client: Client, update: dict):
         iq = _parse_inline_query(client, update["inline_query"])
         await _run_handlers(client, iq, "inline_query")
 
+    elif "pre_checkout_query" in update:
+        pcq = _parse_pre_checkout_query(client, update["pre_checkout_query"])
+        await _run_handlers(client, pcq, "pre_checkout_query")
+
     else:
         logger.debug(f"Unhandled update type: {list(update.keys())}")
 
@@ -251,11 +312,6 @@ async def _dispatch(client: Client, update: dict):
 # ---------------------------------------------------------------------------
 # FastAPI endpoints
 # ---------------------------------------------------------------------------
-
-
-@app.on_event("startup")
-async def on_startup():
-    await _init_bots()
 
 
 @app.post("/api/webhook")
