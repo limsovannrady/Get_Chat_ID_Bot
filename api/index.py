@@ -86,7 +86,10 @@ async def _init_bots():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await _init_bots()
+    try:
+        await _init_bots()
+    except Exception as exc:
+        logger.error(f"Bot init failed on startup (will retry on first request): {exc}", exc_info=True)
     yield
 
 
